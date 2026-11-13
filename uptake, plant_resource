@@ -1,0 +1,4 @@
+uptake, plant_resources = root_resource_uptake(
+    modules,
+    soil
+)
