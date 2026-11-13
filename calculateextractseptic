@@ -1,0 +1,42 @@
+def module_uptake_capacity(module, soil):
+
+    if (
+        module.module_type != ModuleType.ROOT
+        or not module.active
+        or module.stalled
+    ):
+        return {
+            "water": 0.0,
+            "N": 0.0,
+            "P": 0.0,
+            "K": 0.0,
+        }
+
+    activity = root_activity(module)
+
+    water_stress = soil.water_factor()
+
+    return {
+        "water":
+            module.biomass_g
+            * module.water_uptake_rate
+            * activity,
+
+        "N":
+            module.biomass_g
+            * module.N_uptake_rate
+            * activity
+            * water_stress,
+
+        "P":
+            module.biomass_g
+            * module.P_uptake_rate
+            * activity
+            * water_stress,
+
+        "K":
+            module.biomass_g
+            * module.K_uptake_rate
+            * activity
+            * water_stress
+    }
