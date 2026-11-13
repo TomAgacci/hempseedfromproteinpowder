@@ -1,0 +1,41 @@
+def resource_limited_growth(
+    desired_growth,
+    water_available,
+    N_available,
+    P_available,
+    K_available
+):
+
+    water_needed = desired_growth * 2.0
+    N_needed = desired_growth * 0.04
+    P_needed = desired_growth * 0.01
+    K_needed = desired_growth * 0.03
+
+    factors = [1.0]
+
+    if water_needed > 0:
+        factors.append(
+            water_available / water_needed
+        )
+
+    if N_needed > 0:
+        factors.append(
+            N_available / N_needed
+        )
+
+    if P_needed > 0:
+        factors.append(
+            P_available / P_needed
+        )
+
+    if K_needed > 0:
+        factors.append(
+            K_available / K_needed
+        )
+
+    limitation = max(
+        0.0,
+        min(1.0, *factors)
+    )
+
+    return desired_growth * limitation
