@@ -1,0 +1,42 @@
+@dataclass
+class PlantModule:
+    module_id: int
+    module_type: ModuleType
+
+    biomass_g: float = 0.05
+    length_cm: float = 0.05
+    age_days: int = 0
+    generation: int = 0
+
+    active: bool = True
+    stalled: bool = False
+
+    # Maximum soil uptake rates per g module biomass per day.
+    # Illustrative coefficients, not calibrated hemp values.
+    water_uptake_rate: float = 0.0
+    N_uptake_rate: float = 0.0
+    P_uptake_rate: float = 0.0
+    K_uptake_rate: float = 0.0
+
+    # Internal growth requirements per g new biomass.
+    water_requirement: float = 2.0
+    N_requirement: float = 0.04
+    P_requirement: float = 0.01
+    K_requirement: float = 0.03
+
+    def __post_init__(self):
+
+        if self.module_type == ModuleType.ROOT:
+
+            # Example root uptake capacities
+            self.water_uptake_rate = 3.0
+            self.N_uptake_rate = 0.05
+            self.P_uptake_rate = 0.012
+            self.K_uptake_rate = 0.04
+
+        else:
+            # Shoots don't directly mine the modeled soil pool.
+            self.water_uptake_rate = 0.0
+            self.N_uptake_rate = 0.0
+            self.P_uptake_rate = 0.0
+            self.K_uptake_rate = 0.0
