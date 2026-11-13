@@ -24,3 +24,259 @@ for package_name, package_WVTR in package_options.items():
         "risk:",
         round(summary["microbial_risk_index"], 3)
     )
+
+from math import exp
+
+
+def equilibrium_moisture_from_aw(aw, m0=5.0, gain=8.0, exponent=2.2):
+    """
+    Simplified moisture sorption isotherm.
+
+    Parameters
+    ----------
+    aw : float
+        Water activity, 0–1.
+    m0 : float
+        Approximate dry-state moisture content, % wet basis.
+    gain : float
+        Moisture increase as aw rises.
+    exponent : float
+        Curvature of the sorption relationship.
+
+    Returns
+    -------
+    Moisture content, % wet basis.
+
+    Replace with a fitted GAB isotherm when experimental
+    adsorption data are available.
+    """
+    aw = min(max(aw, 0.0), 0.99)
+    return m0 + gain * aw**exponent
+
+
+def aw_from_moisture(moisture, m0=5.0, gain=8.0, exponent=2.2):
+    """
+    Inverse of the simplified sorption isotherm.
+    """
+    if moisture <= m0:
+        return 0.0
+
+    aw = ((moisture - m0) / gain) ** (1.0 / exponent)
+    return min(max(aw, 0.0), 0.99)
+
+
+def simulate_hemp_protein_package(
+    temp_seq,
+    outside_RH_seq,
+    days=None,
+
+    # Product
+    powder_mass_g=500.0,
+    initial_moisture_percent=6.0,
+
+    # Package
+    package_area_m2=0.08,
+    WVTR_g_m2_day=0.10,
+    seal_leak_factor=1.0,
+
+    # Optional internal humidity buffering
+    headspace_response=0.35,
+
+    # Sorption-isotherm parameters
+    isotherm_m0=5.0,
+    isotherm_gain=8.0,
+    isotherm_exponent=2.2
+):
+    """
+    Simulate moisture transmission into packaged hemp protein powder.
+
+    WVTR should correspond as closely as possible to the package's
+    actual temperature and RH test conditions.
+
+    Returns
+    -------
+    summary : dict
+    history : list of daily dictionaries
+    """
+
+    if days is None:
+        days = min(len(temp_seq), len(outside_RH_seq))
+
+    if len(temp_seq) < days or len(outside_RH_seq) < days:
+        raise ValueError(
+            "temp_seq and outside_RH_seq must contain at least "
+            f"{days} values."
+        )
+
+    if powder_mass_g <= 0:
+        raise ValueError("powder_mass_g must be positive.")
+
+    if package_area_m2 <= 0:
+        raise ValueError("package_area_m2 must be positive.")
+
+    # Convert initial wet-basis moisture to dry-solids and water masses.
+    initial_fraction = initial_moisture_percent / 100.0
+    dry_solids_g = powder_mass_g * (1.0 - initial_fraction)
+    water_g = powder_mass_g * initial_fraction
+
+    aw = aw_from_moisture(
+        initial_moisture_percent,
+        m0=isotherm_m0,
+        gain=isotherm_gain,
+        exponent=isotherm_exponent
+    )
+
+    internal_RH_fraction = aw
+
+    quality = 1.0
+    oxidation_index = 0.0
+    microbial_risk_index = 0.0
+
+    history = []
+
+    for t in range(days):
+        temperature_C = temp_seq[t]
+        outside_RH_percent = outside_RH_seq[t]
+        outside_RH_fraction = min(
+            max(outside_RH_percent / 100.0, 0.0),
+            1.0
+        )
+
+        # ---------------------------------------------------------
+        # 1. Adjust WVTR approximately for temperature
+        # ---------------------------------------------------------
+        # Illustrative Q10-type adjustment:
+        # transmission approximately doubles per 10 °C increase.
+        temperature_factor = 2.0 ** ((temperature_C - 23.0) / 10.0)
+
+        effective_WVTR = (
+            WVTR_g_m2_day
+            * temperature_factor
+            * seal_leak_factor
+        )
+
+        # ---------------------------------------------------------
+        # 2. Moisture transmission through packaging
+        # ---------------------------------------------------------
+        # WVTR values are usually measured at a stated RH gradient.
+        # This approximation scales ingress by the current RH
+        # difference across the package.
+
+        humidity_driving_force = max(
+            0.0,
+            outside_RH_fraction - internal_RH_fraction
+        )
+
+        transmitted_water_g = (
+            effective_WVTR
+            * package_area_m2
+            * humidity_driving_force
+        )
+
+        water_g += transmitted_water_g
+
+        # ---------------------------------------------------------
+        # 3. Update powder moisture
+        # ---------------------------------------------------------
+        total_powder_mass_g = dry_solids_g + water_g
+
+        moisture_percent = (
+            100.0 * water_g / total_powder_mass_g
+        )
+
+        equilibrium_aw = aw_from_moisture(
+            moisture_percent,
+            m0=isotherm_m0,
+            gain=isotherm_gain,
+            exponent=isotherm_exponent
+        )
+
+        # Avoid an unrealistic instantaneous aw change.
+        aw += headspace_response * (equilibrium_aw - aw)
+        aw = min(max(aw, 0.0), 0.99)
+
+        internal_RH_fraction += headspace_response * (
+            aw - internal_RH_fraction
+        )
+        internal_RH_fraction = min(
+            max(internal_RH_fraction, 0.0),
+            0.99
+        )
+
+        # ---------------------------------------------------------
+        # 4. Chemical-quality degradation
+        # ---------------------------------------------------------
+        daily_degradation = 0.0005
+
+        # Temperature penalty
+        if temperature_C > 25.0:
+            daily_degradation += (
+                0.0006 * (temperature_C - 25.0)
+            )
+
+        # Moisture-related degradation
+        if moisture_percent > 8.0:
+            daily_degradation += (
+                0.0008 * (moisture_percent - 8.0)
+            )
+
+        # Water-activity contribution
+        if aw > 0.50:
+            daily_degradation += 0.015 * (aw - 0.50)
+
+        quality *= max(0.0, 1.0 - daily_degradation)
+        oxidation_index += daily_degradation
+
+        # ---------------------------------------------------------
+        # 5. Microbial-risk screening
+        # ---------------------------------------------------------
+        # This is not a pathogen-growth or CFU/g model.
+        # It only flags increasingly unfavorable storage conditions.
+
+        daily_microbial_risk = 0.0
+
+        if aw >= 0.60:
+            daily_microbial_risk += 5.0 * (aw - 0.60)
+
+        if moisture_percent > 10.0:
+            daily_microbial_risk += (
+                0.02 * (moisture_percent - 10.0)
+            )
+
+        if aw >= 0.60 and temperature_C > 25.0:
+            daily_microbial_risk *= (
+                1.0 + 0.03 * (temperature_C - 25.0)
+            )
+
+        microbial_risk_index += daily_microbial_risk
+
+        history.append({
+            "day": t + 1,
+            "temperature_C": temperature_C,
+            "outside_RH_percent": outside_RH_percent,
+            "inside_RH_percent": 100.0 * internal_RH_fraction,
+            "effective_WVTR_g_m2_day": effective_WVTR,
+            "water_ingress_g": transmitted_water_g,
+            "cumulative_water_g": water_g,
+            "powder_mass_g": total_powder_mass_g,
+            "moisture_percent": moisture_percent,
+            "water_activity": aw,
+            "quality_fraction": quality,
+            "oxidation_index": oxidation_index,
+            "microbial_risk_index": microbial_risk_index
+        })
+
+    summary = {
+        "days": days,
+        "final_powder_mass_g": dry_solids_g + water_g,
+        "final_moisture_percent": history[-1]["moisture_percent"],
+        "final_water_activity": history[-1]["water_activity"],
+        "remaining_quality_percent": 100.0 * quality,
+        "oxidation_index": oxidation_index,
+        "microbial_risk_index": microbial_risk_index,
+        "total_transmitted_water_g": sum(
+            row["water_ingress_g"] for row in history
+        )
+    }
+
+    return summary, history
