@@ -1,0 +1,9 @@
+if seed_coat_split:
+    root.active = True
+    shoot.active = True
+
+if root.active:
+    root.grow(E, water, nutrients)
+
+if shoot.active:
+    shoot.grow(E, water, nutrients)
