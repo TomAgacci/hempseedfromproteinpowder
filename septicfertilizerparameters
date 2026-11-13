@@ -1,0 +1,45 @@
+treated_cattle_compost = OrganicSource(
+    name="Treated cattle-manure compost",
+    dry_mass_kg=0.25,
+    total_N_g_kg=18.0,
+    total_P_g_kg=7.0,
+    total_K_g_kg=20.0,
+    N_mineralization_rate=0.003,
+    P_mineralization_rate=0.001,
+    K_release_rate=0.010,
+    treated=True,
+    pathogen_risk=0.05,
+    ammonia_risk=0.10,
+    salinity_dS_m=3.0,
+    metals_risk=0.05
+)
+
+treated_biosolids = OrganicSource(
+    name="Treated and tested biosolids",
+    dry_mass_kg=0.10,
+    total_N_g_kg=35.0,
+    total_P_g_kg=18.0,
+    total_K_g_kg=4.0,
+    N_mineralization_rate=0.004,
+    P_mineralization_rate=0.001,
+    K_release_rate=0.008,
+    treated=True,
+    pathogen_risk=0.10,
+    ammonia_risk=0.15,
+    salinity_dS_m=4.0,
+    metals_risk=0.20
+)
+
+result = simulate_modular_seed(
+    E_seq=E_seq,
+    D_seq=D_seq,
+    W_seq=W_seq,
+    temperature_seq=[22.0] * len(E_seq),
+    nutrient_sources=[
+        treated_cattle_compost,
+        treated_biosolids
+    ],
+    days=60,
+    irrigation_g_day=10.0,
+    max_modules=100
+)
