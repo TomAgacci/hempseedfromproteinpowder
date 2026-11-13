@@ -1,0 +1,245 @@
+from dataclasses import dataclass, field
+from enum import Enum, auto
+from math import exp
+
+
+# ------------------------------------------------------------
+# STATES
+# ------------------------------------------------------------
+
+class SeedState(Enum):
+    DRY = auto()
+    IMBIBING = auto()
+    ACTIVATED = auto()
+    COAT_SPLIT = auto()
+    RADICLE = auto()
+    SEEDLING = auto()
+    STALLED = auto()
+    FAILED = auto()
+
+
+class ModuleType(Enum):
+    ROOT = auto()
+    SHOOT = auto()
+
+
+# ------------------------------------------------------------
+# ORGANIC NUTRIENT SOURCE
+# ------------------------------------------------------------
+
+@dataclass
+class OrganicSource:
+    name: str
+
+    # Dry matter added to modeled soil volume
+    dry_mass_kg: float
+
+    # Total nutrient concentrations, g nutrient per kg dry matter
+    total_N_g_kg: float
+    total_P_g_kg: float
+    total_K_g_kg: float
+
+    # Fraction becoming plant-available per day
+    N_mineralization_rate: float
+    P_mineralization_rate: float
+    K_release_rate: float
+
+    # Safety and stress properties
+    treated: bool
+    pathogen_risk: float       # relative index, 0 = validated low risk
+    ammonia_risk: float        # relative index
+    salinity_dS_m: float
+    metals_risk: float         # relative screening index
+
+    remaining_N_g: float = field(init=False)
+    remaining_P_g: float = field(init=False)
+    remaining_K_g: float = field(init=False)
+
+    def __post_init__(self):
+        if self.dry_mass_kg < 0:
+            raise ValueError("dry_mass_kg cannot be negative.")
+
+        self.remaining_N_g = (
+            self.dry_mass_kg * self.total_N_g_kg
+        )
+        self.remaining_P_g = (
+            self.dry_mass_kg * self.total_P_g_kg
+        )
+        self.remaining_K_g = (
+            self.dry_mass_kg * self.total_K_g_kg
+        )
+
+    def validate(self):
+        if not self.treated:
+            raise ValueError(
+                f"{self.name} is marked untreated. "
+                "Untreated septic waste or raw waste is not enabled."
+            )
+
+        if self.pathogen_risk > 0.20:
+            raise ValueError(
+                f"{self.name} exceeds the model's pathogen-risk gate."
+            )
+
+        if self.metals_risk > 0.50:
+            raise ValueError(
+                f"{self.name} exceeds the model's metals-risk gate."
+            )
+
+    def mineralize(self, temperature_C, moisture_factor):
+        """
+        Convert organic nutrient pools into plant-available nutrients.
+
+        This is a conceptual first-order mineralization model.
+        """
+
+        temperature_factor = 2.0 ** (
+            (temperature_C - 20.0) / 10.0
+        )
+
+        environment_factor = max(
+            0.0,
+            min(1.5, temperature_factor * moisture_factor)
+        )
+
+        released_N = min(
+            self.remaining_N_g,
+            self.remaining_N_g
+            * self.N_mineralization_rate
+            * environment_factor
+        )
+
+        released_P = min(
+            self.remaining_P_g,
+            self.remaining_P_g
+            * self.P_mineralization_rate
+            * environment_factor
+        )
+
+        released_K = min(
+            self.remaining_K_g,
+            self.remaining_K_g
+            * self.K_release_rate
+            * environment_factor
+        )
+
+        self.remaining_N_g -= released_N
+        self.remaining_P_g -= released_P
+        self.remaining_K_g -= released_K
+
+        return released_N, released_P, released_K
+
+
+# ------------------------------------------------------------
+# PLANT MODULE
+# ------------------------------------------------------------
+
+@dataclass
+class PlantModule:
+    module_id: int
+    module_type: ModuleType
+
+    biomass_g: float = 0.05
+    length_cm: float = 0.05
+
+    active: bool = True
+    stalled: bool = False
+
+    generation: int = 0
+    age_days: int = 0
+
+    # Relative demand coefficients per day
+    water_demand_per_g: float = 2.0
+    N_demand_per_g: float = 0.04
+    P_demand_per_g: float = 0.01
+    K_demand_per_g: float = 0.03
+
+    def resource_demand(self, potential_growth_g):
+        return {
+            "water": (
+                self.water_demand_per_g
+                * potential_growth_g
+            ),
+            "N": (
+                self.N_demand_per_g
+                * potential_growth_g
+            ),
+            "P": (
+                self.P_demand_per_g
+                * potential_growth_g
+            ),
+            "K": (
+                self.K_demand_per_g
+                * potential_growth_g
+            ),
+        }
+
+
+# ------------------------------------------------------------
+# SHARED SOIL POOL
+# ------------------------------------------------------------
+
+@dataclass
+class SoilPool:
+    water_g: float
+    available_N_g: float
+    available_P_g: float
+    available_K_g: float
+
+    field_capacity_water_g: float
+    wilting_water_g: float
+
+    salinity_dS_m: float = 0.5
+    ammonia_risk: float = 0.0
+    metals_risk: float = 0.0
+    pathogen_risk: float = 0.0
+
+    def water_factor(self):
+        if self.water_g <= self.wilting_water_g:
+            return 0.0
+
+        denominator = (
+            self.field_capacity_water_g
+            - self.wilting_water_g
+        )
+
+        if denominator <= 0:
+            return 0.0
+
+        return max(
+            0.0,
+            min(
+                1.0,
+                (
+                    self.water_g
+                    - self.wilting_water_g
+                ) / denominator
+            )
+        )
+
+    def salinity_factor(self):
+        """
+        Generic screening response, not hemp-specific calibration.
+        """
+
+        if self.salinity_dS_m <= 2.0:
+            return 1.0
+
+        return max(
+            0.0,
+            exp(-0.25 * (self.salinity_dS_m - 2.0))
+        )
+
+    def toxicity_factor(self):
+        combined_risk = (
+            0.40 * self.ammonia_risk
+            + 0.35 * self.metals_risk
+            + 0.25 * self.pathogen_risk
+        )
+
+        return max(0.0, 1.0 - combined_risk)
+
+
+# ------------------------------------------------------------
+# RESOURCE ALLOCATION
+# ------------------------------------------------
