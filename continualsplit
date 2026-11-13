@@ -1,0 +1,47 @@
+from dataclasses import dataclass
+
+
+R_STOP = 0.05
+R_RESTART = 0.10
+R_SPLIT = 0.15
+
+
+@dataclass
+class Module:
+    size: float = 0.05
+    active: bool = True
+    stalled: bool = False
+    generation: int = 0
+
+
+def update_module(module, R):
+    # Hysteresis
+    if not module.stalled and R < R_STOP:
+        module.stalled = True
+
+    elif module.stalled and R >= R_RESTART:
+        module.stalled = False
+
+    if module.stalled:
+        return []
+
+    # Normal module growth
+    module.size += 0.2 * R
+
+    children = []
+
+    # Continual splitting rule
+    if R >= R_SPLIT and module.size >= 0.20:
+
+        child_size = module.size * 0.5
+
+        module.size = child_size
+
+        children.append(
+            Module(
+                size=child_size,
+                generation=module.generation + 1
+            )
+        )
+
+    return children
