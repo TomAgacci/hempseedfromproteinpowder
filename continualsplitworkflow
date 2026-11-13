@@ -1,0 +1,13 @@
+SEED
+ ↓
+COAT_SPLIT
+ ↓
+RADICLE
+ ↓
+MODULE
+ ├── MODULE
+ │    ├── MODULE
+ │    └── MODULE
+ └── MODULE
+      ├── MODULE
+      └── MODULE
