@@ -1,0 +1,20 @@
+days = 20
+
+temp_seq     = [22] * days
+RH_seq       = [45] * days
+aw_seq       = [0.40] * days
+moisture_seq = [6.0] * days
+
+result = simulate_hemp_protein(
+    temp_seq,
+    RH_seq,
+    aw_seq,
+    moisture_seq,
+    days
+)
+
+quality, oxidation, microbial_risk, history = result
+
+print("Quality:", quality)
+print("Oxidation:", oxidation)
+print("Microbial risk:", microbial_risk)
