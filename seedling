@@ -1,0 +1,28 @@
+DRY
+ │
+ ▼
+IMBIBING
+ │ water uptake
+ ▼
+ACTIVATED
+ │ metabolism begins
+ ▼
+COAT_SPLIT
+ │
+ ▼
+RADICLE
+ │
+ │ root module ON
+ ▼
+SEEDLING
+ ├── root module
+ └── shoot module
+       │
+       ├── active growth
+       │
+       ▼
+     STALLED
+       │
+       └── R >= restart threshold
+               ↓
+            SEEDLING
