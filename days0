@@ -1,0 +1,13 @@
+days = 20
+
+temp_seq = [22] * days
+humidity_seq = [45] * days
+
+quality, oxidation = simulate_hemp_protein(
+    temp_seq,
+    humidity_seq,
+    days
+)
+
+print(quality)
+print(oxidation)
