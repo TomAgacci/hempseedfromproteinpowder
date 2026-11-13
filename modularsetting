@@ -1,0 +1,126 @@
+from enum import Enum, auto
+
+
+class SeedState(Enum):
+    DRY = auto()
+    IMBIBING = auto()
+    ACTIVATED = auto()
+    COAT_SPLIT = auto()
+    RADICLE = auto()
+    SEEDLING = auto()
+    STALLED = auto()
+    FAILED = auto()
+
+
+def simulate_seed(
+    E_seq,
+    D_seq,
+    W_seq,
+    days=20,
+    initial_water=0.10,
+    split_water=0.55,
+    activation_water=0.35,
+    radicle_threshold=0.03,
+):
+    """
+    Conceptual seed-germination state machine.
+
+    E = environmental/energy input
+    D = development/stress variable
+    W = water availability
+
+    Thresholds are modeling parameters, not experimentally
+    calibrated hemp germination values.
+    """
+
+    state = SeedState.DRY
+
+    water = initial_water
+
+    # Development variables
+    radicle = 0.0
+    root_length = 0.0
+    shoot_length = 0.0
+    biomass = 0.10
+
+    # Modular-growth switches
+    root_active = False
+    shoot_active = False
+
+    history = []
+
+    for t in range(days):
+
+        E = E_seq[t]
+        D = D_seq[t]
+        W = W_seq[t]
+
+        # -----------------------------------
+        # 1. DRY -> IMBIBING
+        # -----------------------------------
+
+        if state == SeedState.DRY:
+
+            if W > 0:
+                state = SeedState.IMBIBING
+
+        # -----------------------------------
+        # 2. Water uptake
+        # -----------------------------------
+
+        if state == SeedState.IMBIBING:
+
+            uptake = 0.20 * W * (1.0 - water)
+
+            water += uptake
+
+            if water >= activation_water:
+                state = SeedState.ACTIVATED
+
+        # -----------------------------------
+        # 3. Metabolic activation
+        # -----------------------------------
+
+        elif state == SeedState.ACTIVATED:
+
+            uptake = 0.10 * W * (1.0 - water)
+            water += uptake
+
+            R = R_mitosis(E, D, W)
+
+            if water >= split_water and R > 0:
+                state = SeedState.COAT_SPLIT
+
+        # -----------------------------------
+        # 4. Seed coat splitting
+        # -----------------------------------
+
+        elif state == SeedState.COAT_SPLIT:
+
+            R = R_mitosis(E, D, W)
+
+            radicle += 0.10 * R
+
+            if radicle >= radicle_threshold:
+                state = SeedState.RADICLE
+                root_active = True
+
+        # -----------------------------------
+        # 5. Radicle emergence
+        # -----------------------------------
+
+        elif state == SeedState.RADICLE:
+
+            R = R_mitosis(E, D, W)
+
+            if R < 0.05:
+                state = SeedState.STALLED
+
+            else:
+                root_length += 0.20 * R
+                biomass += 0.20 * R
+
+                # Once establishment is sufficient,
+                # activate the shoot module.
+                if root_length >= 0.10:
+           
