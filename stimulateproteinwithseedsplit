@@ -1,0 +1,83 @@
+def simulate_hemp_protein(
+    temp_seq,
+    RH_seq,
+    aw_seq,
+    moisture_seq,
+    days=20
+):
+    quality = 1.0
+    oxidation = 0.0
+    microbial_risk = 0.0
+
+    history = []
+
+    for t in range(days):
+        T  = temp_seq[t]        # °C
+        RH = RH_seq[t]          # %
+        aw = aw_seq[t]          # 0–1
+        M  = moisture_seq[t]    # % moisture by mass
+
+        # -------------------------
+        # 1. Chemical degradation
+        # -------------------------
+        degradation = 0.001
+
+        # Temperature stress
+        if T > 25:
+            degradation += 0.001 * (T - 25)
+
+        # Humidity / moisture exposure
+        if RH > 60:
+            degradation += 0.0003 * (RH - 60)
+
+        # Product moisture penalty
+        # Illustrative threshold, calibrate experimentally.
+        if M > 8:
+            degradation += 0.001 * (M - 8)
+
+        # Water-activity contribution
+        if aw > 0.50:
+            degradation += 0.01 * (aw - 0.50)
+
+        # -------------------------
+        # 2. Microbial risk index
+        # -------------------------
+        # This is NOT CFU/g growth.
+        # It is only a relative warning indicator.
+
+        daily_micro_risk = 0.0
+
+        if aw >= 0.60:
+            daily_micro_risk += (aw - 0.60) * 5.0
+
+        if M > 10:
+            daily_micro_risk += (M - 10) * 0.02
+
+        # Warm + wet conditions increase concern
+        if T > 25 and aw >= 0.60:
+            daily_micro_risk *= 1.0 + 0.03 * (T - 25)
+
+        microbial_risk += daily_micro_risk
+
+        # -------------------------
+        # 3. Update quality
+        # -------------------------
+        oxidation += degradation
+
+        quality *= max(
+            0.0,
+            1.0 - degradation
+        )
+
+        history.append({
+            "day": t + 1,
+            "temperature_C": T,
+            "relative_humidity": RH,
+            "water_activity": aw,
+            "moisture_percent": M,
+            "quality": quality,
+            "oxidation_index": oxidation,
+            "microbial_risk_index": microbial_risk
+        })
+
+    return quality, oxidation, microbial_risk, history
