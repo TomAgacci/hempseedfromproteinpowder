@@ -1,0 +1,79 @@
+def root_resource_uptake(modules, soil):
+
+    roots = [
+        m for m in modules
+        if (
+            m.module_type == ModuleType.ROOT
+            and m.active
+            and not m.stalled
+        )
+    ]
+
+    capacities = {
+        m.module_id: module_uptake_capacity(m, soil)
+        for m in roots
+    }
+
+    totals = {
+        resource: sum(
+            c[resource]
+            for c in capacities.values()
+        )
+        for resource in ["water", "N", "P", "K"]
+    }
+
+    supplies = {
+        "water": max(
+            0.0,
+            soil.water_g - soil.wilting_water_g
+        ),
+        "N": soil.available_N_g,
+        "P": soil.available_P_g,
+        "K": soil.available_K_g
+    }
+
+    # Competition factors
+    scale = {}
+
+    for resource in ["water", "N", "P", "K"]:
+
+        if totals[resource] <= 0:
+            scale[resource] = 0.0
+
+        else:
+            scale[resource] = min(
+                1.0,
+                supplies[resource]
+                / totals[resource]
+            )
+
+    uptake = {}
+
+    for module in roots:
+
+        cap = capacities[module.module_id]
+
+        uptake[module.module_id] = {
+            resource:
+                cap[resource] * scale[resource]
+
+            for resource in [
+                "water", "N", "P", "K"
+            ]
+        }
+
+    # Remove resources from soil
+    total_taken = {
+        resource: sum(
+            u[resource]
+            for u in uptake.values()
+        )
+        for resource in ["water", "N", "P", "K"]
+    }
+
+    soil.water_g -= total_taken["water"]
+    soil.available_N_g -= total_taken["N"]
+    soil.available_P_g -= total_taken["P"]
+    soil.available_K_g -= total_taken["K"]
+
+    return uptake, total_taken
