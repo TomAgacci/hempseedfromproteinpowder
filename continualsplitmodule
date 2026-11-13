@@ -1,0 +1,17 @@
+modules = [Module()]
+
+for t in range(days):
+
+    E = E_seq[t]
+    D = D_seq[t]
+    W = W_seq[t]
+
+    R = R_mitosis(E, D, W)
+
+    new_modules = []
+
+    for module in modules:
+        children = update_module(module, R)
+        new_modules.extend(children)
+
+    modules.extend(new_modules)
