@@ -1,0 +1,26 @@
+package_options = {
+    "high_barrier_laminate": 0.01,
+    "medium_barrier_pouch": 0.10,
+    "basic_polymer_bag": 1.00
+}
+
+for package_name, package_WVTR in package_options.items():
+    summary, _ = simulate_hemp_protein_package(
+        temperature,
+        outside_RH,
+        days=days,
+        powder_mass_g=500.0,
+        initial_moisture_percent=6.0,
+        package_area_m2=0.08,
+        WVTR_g_m2_day=package_WVTR
+    )
+
+    print(
+        package_name,
+        "moisture:",
+        round(summary["final_moisture_percent"], 3),
+        "aw:",
+        round(summary["final_water_activity"], 3),
+        "risk:",
+        round(summary["microbial_risk_index"], 3)
+    )
