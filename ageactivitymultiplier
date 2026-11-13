@@ -1,0 +1,20 @@
+def root_activity(module):
+    """
+    Young root modules represent more active absorbing tissue.
+    """
+
+    if module.module_type != ModuleType.ROOT:
+        return 0.0
+
+    age = module.age_days
+
+    if age <= 5:
+        return 1.0
+
+    if age <= 20:
+        return 0.85
+
+    if age <= 40:
+        return 0.60
+
+    return 0.35
