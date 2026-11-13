@@ -1,0 +1,23 @@
+def simulate_hemp_protein(temp_seq, humidity_seq, days=20):
+    quality = 1.0       # 100% starting quality
+    oxidation = 0.0
+
+    for t in range(days):
+        T  = temp_seq[t]       # temperature, °C
+        RH = humidity_seq[t]   # relative humidity, %
+
+        # Example baseline degradation rate
+        rate = 0.001
+
+        # Higher-temperature penalty
+        if T > 25:
+            rate += 0.001 * (T - 25)
+
+        # High-humidity penalty
+        if RH > 60:
+            rate += 0.0005 * (RH - 60)
+
+        oxidation += rate
+        quality *= max(0.0, 1.0 - rate)
+
+    return quality, oxidation
